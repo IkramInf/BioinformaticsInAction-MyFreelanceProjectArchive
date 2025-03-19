@@ -1,0 +1,14 @@
+## REQUIRED PACKAGES
+    # Python libraries
+        [1] biopython
+            How to install: pip install biopython
+        [2] wget
+            How to install: pip install wget
+            
+    # ncbi-blast+ (2.12.0+)
+    
+## USAGE
+
+python3 blast_analysis.py
+
+## No command line arguments needed.
