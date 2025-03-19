@@ -1,0 +1,17 @@
+Combine annotation and differential expression file and write common gene names
+along with description and p-value in a tab-separated file
+
+# Step by step procedures:
+    Step-1: read annotation file
+            i) read columns 4 and 5. column 4: gene name; column 5: description
+            ii) store data into dict. {key:gene name and value: description}
+    Step-2: read  differential expression data file
+            i) read columns 1 and 5. column 4: gene name; column 5: p-value
+            ii) store data into dict. {key:gene name and value: p-value}
+    Step-3: write output to a file
+            i) find out common genes in two dicts
+            ii) write gene name, description and p-value in a tab-separated file
+            
+            
+# Usage
+    python3 GOdiff_studentid.py
