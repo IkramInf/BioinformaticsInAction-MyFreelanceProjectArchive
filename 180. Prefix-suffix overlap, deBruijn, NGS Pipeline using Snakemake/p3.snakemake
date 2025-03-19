@@ -1,0 +1,94 @@
+# Specify parameters
+REFERENCE = "genome.fa"
+FASTQ1 = "ENCSR000COQ1_1.fastq.gz"
+FASTQ2 = "ENCSR000COQ1_2.fastq.gz"
+THREADS = 4
+
+# Clean up .snakemake directory
+onsuccess:
+	shell("rm -rf .snakemake")
+
+# Wildcards constraints
+wildcard_constraints:
+    sample="[^/]+"
+
+# Index the reference genome
+rule index_reference:
+    input:
+        ref=REFERENCE
+    output:
+        multiext(
+            REFERENCE,
+            ".amb", ".ann", ".bwt", ".pac", ".sa")
+    threads: 1
+    shell:
+        "bwa index {input.ref}"
+
+# Align reads using BWA MEM
+rule bwa_mem:
+    input:
+        ref=REFERENCE,
+        idx=multiext(
+            REFERENCE,
+            ".amb", ".ann", ".bwt", ".pac", ".sa"),
+        r1=FASTQ1,
+        r2=FASTQ2
+    output:
+        temp("aligned.sam")
+    threads: THREADS
+    shell:
+        "bwa mem -t {threads} {input.ref} {input.r1} {input.r2} > {output}"
+
+# Convert SAM to BAM
+rule sam_to_bam:
+    input:
+        "aligned.sam"
+    output:
+        temp("aligned.bam")
+    threads: THREADS
+    shell:
+        "samtools view -@ {threads} -Sb {input} > {output}"
+
+# Sort BAM file
+rule sort_bam:
+    input:
+        "aligned.bam"
+    output:
+        bam=temp("aligned.sorted.bam"),
+        bai=temp("aligned.sorted.bam.bai")
+    threads: THREADS
+    shell:
+        """
+        samtools sort -@ {threads} {input} -o {output.bam}
+        samtools index {output.bam}
+        """
+
+# Call variants
+rule call_variants:
+    input:
+        ref=REFERENCE,
+        bam="aligned.sorted.bam",
+        bai="aligned.sorted.bam.bai"
+    output:
+        temp("raw.vcf")
+    shell:
+        "bcftools mpileup -Ou -f {input.ref} {input.bam} | bcftools call -mv -Ov -o {output}"
+
+# Filter variants
+rule filter_variants:
+    input:
+        "raw.vcf"
+    output:
+        "{prefix}.vcf"
+    run:
+        shell("""
+            bcftools filter -i 'QUAL>=20 && DP>=20' {input} -Ov -o {output}
+            echo "Total number of high-confidence variant calls: $( grep -v '^#' {output} | wc -l )"
+        """)
+        # Clean up reference index files
+        for ext in [".amb", ".ann", ".bwt", ".pac", ".sa", ".fai"]:
+            try:
+                os.remove(REFERENCE + ext)
+            except OSError:
+                pass
+
