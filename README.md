@@ -6,16 +6,16 @@ Welcome to Bioinformatics in Action: My Freelance Project Archive! This reposito
 
 Each project is organized in a separate folder with the following structure:  
 
-BioinformaticsInAction-MyFreelanceProjectArchive/
+BioinformaticsInAction-MyFreelanceProjectArchive/  
 │── Project_Name_1/  
 │   ├── README.md  # Project details  
 │   ├── scripts/    # Python, R, or Bash scripts  
 │   ├── data/       # Sample datasets (if applicable)  
 │   ├── results/    # Output files or reports  
-│
+│  
 │── Project_Name_2/  
 │   ├── ...  
-
+  
 ## Key Areas of Expertise
 
 This repository includes projects covering:  
