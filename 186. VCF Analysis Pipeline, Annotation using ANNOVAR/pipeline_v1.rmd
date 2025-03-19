@@ -1,0 +1,55 @@
+---
+title: "VCF Analysis Pipeline"
+author: "Alnukhatha"
+date: "`r Sys.Date()`"
+---
+
+## Setup Environment and Paths
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Write a function to execute bash script
+run_bash_script <- function(script_name, vcf_path, output_file = NULL) {
+  # Check if script exists
+  if (!file.exists(script_name)){
+    stop(paste("Error:", script_name, "not found!"))
+    }
+  
+  # Execute Bash script
+  output <- system2("bash", args = c(script_name, vcf_path), stdout = TRUE, stderr = TRUE)
+  
+  # Write output into file
+  if (!is.null(output_file)){
+    writeLines(output, output_file)
+  }
+  
+  # return output
+  output
+}
+
+# Specify VCF file path
+vcf_path <- "trios.vcf"
+
+# Specify all bash scripts here...
+scripts <- c("q1a.sh", "q1b.sh", "q1c.sh")
+output_path <- NULL
+
+```
+
+## Run All Bash Scripts
+```{r run_all}
+for (i in seq_along(scripts)) {
+  cat(sprintf("\n[%d]. Running Script: %s...\n", i, scripts[i]))
+  
+  if(scripts[i] == "q1c.sh"){
+    output_path <- "denovo_mutations.vcf"
+  }
+  
+  output <- run_bash_script(scripts[i], vcf_path, output_path)
+  
+  if (length(output) > 0) {
+    cat("Output:\n")
+    cat(paste(output, collapse = "\n\n"))}
+}
+
+```

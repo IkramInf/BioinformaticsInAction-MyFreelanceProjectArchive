@@ -1,0 +1,358 @@
+---
+title: "Assesed Coursework for Essentials of Mathematics, and Statistics"
+author: "Alnukhatha"
+date: "`r Sys.Date()`"
+---
+
+# Part 1: Data Exploration and Visualization
+
+## 1.1. Explore the Structure of the Data
+
+1. Load the data and examine the structure of Y and patient_data. Provide a brief summary of what each object represents.
+
+```{r}
+# Load the dataset
+data_filepath <- "Coursework_data_1024.Rdata"
+load(data_filepath)
+
+# Structure of Y and patient_data
+str(Y)
+str(patient_data)
+
+```
+
+Y is gene expression matrix containing numeric count values. patient_data is a dataframe containing metadata for each sample i.e., tissue type and patient IDs.
+
+2. Identify key features of the data, such as dimensions, column names, or unique values.
+
+```{r}
+# Dimensions of Y
+dim(Y)
+# Column names i.e., sample IDs of Y
+colnames(Y)
+# Unique values in patient_data
+unique(patient_data$tissue)
+unique(patient_data$patient_id)
+
+```
+
+In the data, there are 4568 genes and 30 samples. The samples belongs to 2 groups i.e., tumour and normal. Total 15 patients having tumour and normal expression for each one.
+
+
+## 1.2. Visualize Gene Expression
+
+1. Generate boxplots to visualize the expression levels of first 10 genes for tumor and normal tissue types in the dataset.
+
+```{r}
+# Prepare data for tumor and normal tissues
+tumor_data <- Y[1:10, patient_data$tissue == "Tumour"]
+normal_data <- Y[1:10, patient_data$tissue == "Normal"]
+
+# Set up a pltiing layout
+par(mfrow = c(1, 2)) 
+
+# Tumor Boxplot
+boxplot(
+  t(tumor_data),
+  names = rownames(tumor_data),
+  col = "red",
+  las = 2,
+  main = "Tumour Expression",
+  outline = TRUE)
+
+# Normal Boxplot
+boxplot(
+  t(normal_data),
+  names = rownames(normal_data),
+  col = "blue",
+  las = 2,
+  main = "Normal Expression",
+  outline = TRUE)
+
+```
+
+
+2. Compare the distribution of gene expression for tumor and normal tissue types. Highlight potntial differences.
+
+If we look at expression levels for tumour and normal tissue, tumour expressed higher than normal. Especially for gene 1, 2, 7 and 9 i.e., ENSG00000157106, ENSG00000122565, ENSG00000111615 and ENSG00000197323 has much higher tumour expression in the above box plot.
+
+
+## 1.3. Identify Problematic Samples
+
+1. Transform the gene expression matrix using log2(Y+1), and create a boxplot to show the distribution of gene expression across all samples. You will have 30 boxplots side by side.
+
+```{r}
+# Boxplot for all samples
+boxplot(log2(Y + 1),
+        main = "Gene Expression Across All Samples",
+        las = 2)
+
+```
+
+
+2. Identify any problematic sample. Provide evidence for your selection.
+
+In the boxplot, Sample003 is problemetic. It has almost zero expression levels for each gene that suggests a issue like low sequencing depth.
+
+3. Remove the patient associated with the problematic sample.
+
+```{r}
+Y <- Y[, -3]
+patient_data <- patient_data[-3, ]
+
+```
+
+## 1.4. Library Size as a Covariate
+
+1. Explain the concept of library size in the context of this dataset.
+
+Library size refers to total sequencing reads for a sample. We can get library size for a sample by adding all counts under it. If we consider Sample001, Sample002 and Sample030 in Y, they have 13742459, 21727547 and 7360767 library size respectively.
+
+2. Discuss potential reasons why library size may vary across samples and why it is important to include library size as a covariate in the regression analysis for differential expression analysis.
+
+Variations in library size may arise from sample preparation, sequencing depth etc. This variations can introduce bias in expression comparisons. To address this issue we can either normalize data or include library size as a covariate in models.
+
+# Part 2: Differential Expression Analysis
+
+## 2.1. Analyze the Example Code
+
+Study the following code and add comments to describe what each part does. Do not change the code.
+
+library(tidyverse)
+library(MASS)
+
+load("~/Coursework_data_1024.Rdata")
+idx <- 20
+c_cl <- 15:30
+boxplot(log2(Y[, c_cl] + 1))
+x <- patient_data$tissue[c_cl]
+z <- patient_data$patient[c_cl]
+tmp <- data.frame(y = Y[idx, c_cl], x = x, z = z, lib_size = colSums(Y[, c_cl]))
+out <- glm(y ~ x + z + lib_size, data = tmp, family = "poisson")
+p_val <- summary(out)$coefficients[2, 4]
+
+
+```{r}
+# import required libraries
+library(tidyverse)
+library(MASS)
+
+# load the data
+load("~/Coursework_data_1024.Rdata")
+# Select the 20th gene
+idx <- 20
+# Select a subset of samples (Sample015 to Sample030)
+c_cl <- 15:30
+# Boxplot for the extracted samples
+boxplot(log2(Y[, c_cl] + 1))
+
+# Extract tissue types
+x <- patient_data$tissue[c_cl]
+# Extract patient IDs
+z <- patient_data$patient[c_cl]
+
+# Prepare data for Poisson regression
+tmp <- data.frame(y = Y[idx, c_cl], x = x, z = z, lib_size = colSums(Y[, c_cl]))
+
+# Perform Poisson regression
+out <- glm(y ~ x + z + lib_size, data = tmp, family = "poisson")
+
+# Extract p-value
+p_val <- summary(out)$coefficients[2, 4]
+
+```
+
+## 2.2. Perform Poisson Regression
+
+1. Employing the code above, perform a Poisson regression analysis that includes the following covariates: Tissue type, Library size , and Patient ID.
+
+```{r}
+# Initialize vectors
+p_values <- numeric(nrow(Y))
+
+# Perform Poisson regression for each gene
+for (i in 1:nrow(Y)) {
+  tmp <- data.frame(y=Y[i, ],
+                    x=patient_data$tissue, 
+                    z=patient_data$patient_id,
+                    lib_size=colSums(Y))
+  out <- glm(y ~ x + z + lib_size, data = tmp, family = "poisson")
+  p_values[i] <- summary(out)$coefficients[2, 4]}
+
+```
+
+2. Compute the p-value and Bonferroni-adjusted p-value for the tissue type covariate for each gene. Plot:
+  −log10(p−value) vs gene index
+  −log10(adjustedp−value) vs gene index
+  
+```{r}
+# Adjusted p-values
+adj_p_values <- p.adjust(p_values, method = "bonferroni")
+
+# Gene indices
+gene_index <- seq_along(p_values)
+eps <- 1e-10
+threshold <- -log10(0.05)
+
+# Set up plot layout
+par(mfrow = c(1, 2))
+
+# Plot -log10(p-value) vs gene index
+plot(gene_index, -log10(p_values + eps),
+     type = "p", col = "blue", main = "P-values",
+     xlab = "Gene Index", ylab = "-log10(p-value)")
+abline(h = threshold, col = "red", lty = 2, lwd = 2)
+
+# Plot -log10(adjusted p-value) vs gene index
+plot(gene_index, -log10(adj_p_values + eps),
+     type = "p", col = "green", main = "Adjusted P-values",
+     xlab = "Gene Index", ylab = "-log10(adj. p-value)")
+abline(h = threshold, col = "red", lty = 2, lwd = 2)
+
+```
+
+
+3. Compare two plots and explain any visible differences or similarities between the raw p-value and adjusted p-value distributions. Justify your observations.
+
+In the above two plots:
+Distribution of raw p-values:
+Maximum p-values are tends to zero. Other values are scattered between 0 to 1.
+
+Distribution of adjusted p-values:
+We get much p-values both either as tends to zero and tends to 1. Other values are scattered between 0 to 1.
+
+Adjusted p-values focuses on robustly significant genes that often reduces significant gene counts. Removing false positives could be a reason behind this reduction.
+
+4. Using a threshold of 0.05 for adjusted p-values, identify genes significantly associated with the tissue type. You may add a line on your plots to visulaize this. Using a code, find how many such genes you have?
+
+```{r}
+# Count significantly associated genes
+significant_genes_raw <- sum(p_values < 0.05)
+significant_genes_adj <- sum(adj_p_values < 0.05)
+
+cat("Number of significant genes (raw):", significant_genes_raw, "\n")
+cat("Number of significant genes (adjusted):", significant_genes_adj)
+
+```
+
+In the above plot, genes above the horizontal red line are significant genes.
+
+## 2.3. Compare Covariates
+
+1. Exclude the covariate for tissue type from the regerssion model and plot the adusted p-values with full model. 
+
+```{r}
+# Initialize vectors
+p_values_rm <- numeric(nrow(Y))
+
+# Perform Poisson regression for each gene
+for (i in 1:nrow(Y)) {
+  tmp <- data.frame(y=Y[i, ],
+                    z=patient_data$patient_id,
+                    lib_size=colSums(Y))
+  out <- glm(y ~ z + lib_size, data = tmp, family = "poisson")
+  p_values_rm[i] <- summary(out)$coefficients[2, 4]}
+
+# Adjust p-values
+adj_p_values_rm <- p.adjust(p_values_rm, method = "bonferroni")
+
+# Gene indices
+gene_index <- seq_along(adj_p_values)
+eps <- 1e-10
+threshold <- -log10(0.05)
+
+# Set up plot layout
+par(mfrow = c(1, 2))
+
+# Plot -log10(adj p-value) for full model
+plot(gene_index, -log10(adj_p_values + eps),
+     type = "p", col = "green", main = "Adj. pval (Full Model)",
+     xlab = "Gene Index", ylab = "-log10(adj. p-value)")
+abline(h = threshold, col = "red", lty = 2, lwd = 2)
+
+# Plot -log10(adj p-value) for reduced model
+plot(gene_index, -log10(adj_p_values_rm + eps),
+     type = "p", col = "blue", main = "Adj. pval (Reduced Model)",
+     xlab = "Gene Index", ylab = "-log10(adj. p-value)")
+abline(h = threshold, col = "red", lty = 2, lwd = 2)
+
+```
+
+2. For the reduced model, identify how many genes remain significantly associated (adjusted p-value < 0.05). Justify the potential difference and discuss if the number of associated genes could be a good measure to select model?
+
+```{r}
+# Count significantly associated genes
+significant_genes_rm <- sum(adj_p_values_rm < 0.05)
+
+cat("Number of significant genes (reduced model):", significant_genes_rm, "\n")
+
+```
+
+Number of significant genes in full model and reduced model are 4433 and 4120 respectively. There are 313 genes are less in reduced model than full model. This reduction could be due to tissue type association. i.e., tissue type may capture variability in gene expression specific to different tissues. So, removing tissue type reduces this ability and lessen significant genes.
+Only the number of associated genes aren't a good measure to select model. We need a model that fits data well and produces biologically relevant results. We should also consider the goal i.e, we should include or exclude any variables, covariates etc based on the objectives.
+
+3. For the full model, extract the coefficients for each covariate across all genes. Plot boxplots showing the distribution of coefficients for Tissue type, Library size, and Patient ID.
+
+```{r}
+coef_matrix <- matrix(NA, nrow = nrow(Y), ncol = 3)
+colnames(coef_matrix) <- c("tissue", "lib_size", "patient_id")
+
+for (i in 1:nrow(Y)) {
+  tmp <- data.frame(y = Y[i, ],
+                    x = patient_data$tissue,
+                    z = patient_data$patient_id,
+                    lib_size = colSums(Y))
+  out <- glm(y ~ x + z + lib_size, data = tmp, family = "poisson")
+  
+  # Extract coefficients
+  coefficients <- summary(out)$coefficients
+  
+  # Extract specific coefficients
+  x <- coefficients[grep("^x", rownames(coefficients)), 1]
+  lib_size <- coefficients["lib_size", 1]
+  z <- mean(coefficients[grep("^z", rownames(coefficients)), 1])
+
+  # Extract coefficients using names
+  coef_matrix[i, "tissue"] <- x
+  coef_matrix[i, "lib_size"] <- lib_size
+  coef_matrix[i, "patient_id"] <- z
+}
+
+boxplot(coef_matrix, main = "Distribution of Coefficients")
+
+```
+
+
+4. Discuss whether the magnitude of the coefficients is a meaningful way to compare the effects of different covariates. (Optional: Learning more) Employ an alternative approach to more effectively select the better model (inclusion or exclusion of tumor type) and discuss the result.
+
+Though The magnitude of coefficients indicates the strength of association between covariates and the outcome, direct comparison can be misleading. Differences in units or scales, correlations between covariates etc., can distort the relative importance of covariates.
+
+Rather, we can compare model performance with and without a covariate to determine it's importance. An approach is given below:
+
+```{r}
+# Select the 20th gene
+idx <- 20
+
+# Extract tissue types
+x <- patient_data$tissue
+# Extract patient IDs
+z <- patient_data$patient_id
+
+# Prepare data for Poisson regression
+tmp <- data.frame(y = Y[idx, ], x = x, z = z, lib_size = colSums(Y))
+# Perform Poisson regression
+full_model <- glm(y ~ x + z + lib_size, data = tmp, family = "poisson")
+
+# Prepare data for Poisson regression
+tmp <- data.frame(y = Y[idx, ], z = z, lib_size = colSums(Y))
+# Perform Poisson regression
+reduced_model <- glm(y ~  z + lib_size, data = tmp, family = "poisson")
+
+# Perform likelihood ratio test
+anova(reduced_model, full_model)
+
+
+```
+
+Model 1 without tissue type has residual deviance 77529 and Model 2 with tissue type has residual deviance 34166 that is lower. This less residual deviance suggests better model fit. Also the p-value (2.2e-16) is extremely small suggests that tissue type has significant importance.
+
